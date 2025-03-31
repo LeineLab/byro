@@ -295,7 +295,7 @@ with suppress(ImportError):
     import django_securebox
 
     INSTALLED_APPS.append("django_securebox")
-    MIDDLEWARE.insert(2, "django_securebox.middleware.SecureBoxMiddleware")
+    MIDDLEWARE.insert(3, "django_securebox.middleware.SecureBoxMiddleware")
 
 with suppress(ImportError):
     import debug_toolbar
