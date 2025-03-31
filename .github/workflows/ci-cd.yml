@@ -23,7 +23,7 @@ concurrency:
 jobs:
   style-isort:
     name: "[Style] isort"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.10
@@ -44,7 +44,7 @@ jobs:
 
   style-flake8:
     name: "[Style] flake8"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.10
@@ -65,7 +65,7 @@ jobs:
 
   style-black:
     name: "[Style] black"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.10
@@ -86,7 +86,7 @@ jobs:
 
   style-djhtml:
     name: "[Style] DjHTML"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.10
@@ -106,7 +106,7 @@ jobs:
         working-directory: ./src
 
   testing:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: Tests
     strategy:
       fail-fast: false
@@ -173,12 +173,12 @@ jobs:
         run: python -m pytest --reruns=3 -nauto -p no:sugar --cov=./ --cov-report=xml --maxfail=100 tests
         env:
           BYRO_CONFIG_FILE: 'tests/byro.${{ matrix.database }}.cfg'
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: src/coverage.xml
-          fail_ci_if_error: true
-        if: matrix.database == 'postgres' && matrix.python-version == '3.10'
+      #- name: Upload coverage
+      #  uses: codecov/codecov-action@v3
+      #  with:
+      #    files: src/coverage.xml
+      #    fail_ci_if_error: true
+      #  if: matrix.database == 'postgres' && matrix.python-version == '3.10'
 
   build-python-package:
     name: 🔨 Build python package
@@ -188,7 +188,7 @@ jobs:
       - style-black
       - style-djhtml
       - testing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: 🏗 Set up Python 3.10
@@ -233,7 +233,7 @@ jobs:
     name: ⬆ Upload release to PyPI
     needs: build-python-package
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     environment:
       name: pypi
       url: https://pypi.org/p/byro
@@ -253,7 +253,7 @@ jobs:
   build-docker-image:
     name: 🔨 Build docker image
     needs: build-python-package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: 🏗 Checkout
         uses: actions/checkout@v4
@@ -271,7 +271,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: 🏗 Build Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: src
           platforms: linux/amd64
@@ -288,8 +288,8 @@ jobs:
   push-docker-image:
     name: 🔨 Push Docker image to GitHub Packages
     needs: build-docker-image
-    if: github.event_name == 'push' || (github.event_name == 'release' && github.event.action == 'published')
-    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
     permissions:
       packages: write
       contents: read
@@ -317,7 +317,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: 🏗 Build container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: src
           platforms: linux/amd64,linux/arm64
