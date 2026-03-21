@@ -1,8 +1,7 @@
 from decimal import Decimal
 
+import django_filters
 from django.shortcuts import get_object_or_404
-from django.utils.timezone import now
-from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -14,9 +13,43 @@ from byro.members.models import Member, Membership
 from .serializers import MemberSerializer, MembershipSerializer
 
 
+class MemberFilter(django_filters.FilterSet):
+    email = django_filters.CharFilter(field_name="email", lookup_expr="iexact")
+    email__contains = django_filters.CharFilter(
+        field_name="email", lookup_expr="icontains"
+    )
+    number = django_filters.CharFilter(field_name="number", lookup_expr="exact")
+    name__contains = django_filters.CharFilter(
+        field_name="name", lookup_expr="icontains"
+    )
+    is_active = django_filters.BooleanFilter(method="filter_is_active")
+    secret_token = django_filters.CharFilter(
+        field_name="profile_memberpage__secret_token", lookup_expr="exact"
+    )
+
+    def filter_is_active(self, queryset, name, value):
+        from django.db.models import Q
+        from django.utils.timezone import now as tz_now
+
+        today = tz_now().date()
+        active_q = Q(memberships__start__lte=today) & (
+            Q(memberships__end__isnull=True) | Q(memberships__end__gte=today)
+        )
+        if value:
+            return queryset.filter(active_q).distinct()
+        return queryset.exclude(active_q).distinct()
+
+    class Meta:
+        model = Member
+        fields = []
+
+
 BALANCE_TYPE_MAP = {
     "payment": lambda: (SpecialAccounts.fees_receivable, SpecialAccounts.bank),
-    "initial": lambda: (SpecialAccounts.opening_balance, SpecialAccounts.fees_receivable),
+    "initial": lambda: (
+        SpecialAccounts.opening_balance,
+        SpecialAccounts.fees_receivable,
+    ),
     "waiver": lambda: (SpecialAccounts.fees_receivable, SpecialAccounts.lost_income),
 }
 
@@ -24,6 +57,7 @@ BALANCE_TYPE_MAP = {
 class MemberViewSet(ModelViewSet):
     queryset = Member.all_objects.all()
     serializer_class = MemberSerializer
+    filterset_class = MemberFilter
     http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     def perform_create(self, serializer):
@@ -68,16 +102,19 @@ class MemberViewSet(ModelViewSet):
         from_, to_ = BALANCE_TYPE_MAP[balance_type]()
 
         if value_datetime_str:
-            from django.utils.dateparse import parse_datetime, parse_date
+            from django.utils.dateparse import parse_date, parse_datetime
 
             value_datetime = parse_datetime(value_datetime_str) or parse_date(
                 value_datetime_str
             )
             if value_datetime is None:
                 return Response(
-                    {"error": "invalid value_datetime"}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": "invalid value_datetime"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
         else:
+            from django.utils.timezone import now
+
             value_datetime = now()
 
         changed = member.adjust_balance(
@@ -95,7 +132,9 @@ class MemberViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        member.log(request, ".finance.balance_adjusted", amount=str(amount), type=balance_type)
+        member.log(
+            request, ".finance.balance_adjusted", amount=str(amount), type=balance_type
+        )
         return Response({"balance": member.balance})
 
 
