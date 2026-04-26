@@ -12,7 +12,14 @@ from django.utils.translation import gettext as _
 from django.views.generic import TemplateView, View
 
 from byro.common.models import LogEntry
-from byro.common.oidc import OIDCError, build_auth_url, exchange_code, get_or_create_user, is_oidc_configured, validate_id_token
+from byro.common.oidc import (
+    OIDCError,
+    build_auth_url,
+    exchange_code,
+    get_or_create_user,
+    is_oidc_configured,
+    validate_id_token,
+)
 
 
 class LoginView(TemplateView):
@@ -100,19 +107,24 @@ class OIDCCallbackView(View):
         error = request.GET.get("error")
         if error:
             error_description = request.GET.get("error_description", error)
-            messages.error(request, _("SSO login failed: %(error)s") % {"error": error_description})
+            messages.error(
+                request, _("SSO login failed: %(error)s") % {"error": error_description}
+            )
             return redirect("common:login")
 
         try:
             state = request.GET.get("state", "")
-            if not state or state != request.session.get("oidc_state"):
+            if not state or not secrets.compare_digest(
+                state, request.session.get("oidc_state", "")
+            ):
                 raise OIDCError("Invalid or missing state parameter")
 
             code = request.GET.get("code")
             if not code:
                 raise OIDCError("Missing authorization code")
 
-            nonce = request.session.get("oidc_nonce", "")
+            nonce = request.session.pop("oidc_nonce", "")
+            request.session.pop("oidc_state", None)
             redirect_uri = request.build_absolute_uri(reverse("common:oidc-callback"))
 
             token_response = exchange_code(code, redirect_uri)
@@ -128,6 +140,7 @@ class OIDCCallbackView(View):
                 messages.error(request, _("User account is deactivated."))
                 return redirect("common:login")
 
+            user.backend = "django.contrib.auth.backends.ModelBackend"
             login(request, user)
             LogEntry.objects.create(
                 content_object=user,

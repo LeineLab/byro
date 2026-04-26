@@ -1,11 +1,14 @@
 import json
+import time
 import urllib.parse
 import urllib.request
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-_discovery_cache = {}
+_discovery_cache = {}  # issuer_url -> (doc, fetched_at)
+_DISCOVERY_TTL = 4 * 60 * 60  # 4 hours
+_HTTP_TIMEOUT = 10
 
 
 class OIDCError(Exception):
@@ -16,27 +19,17 @@ def is_oidc_configured():
     return bool(settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID)
 
 
-def get_oidc_settings():
-    return {
-        "issuer_url": settings.OIDC_ISSUER_URL,
-        "client_id": settings.OIDC_CLIENT_ID,
-        "client_secret": settings.OIDC_CLIENT_SECRET,
-        "admin_group": settings.OIDC_ADMIN_GROUP,
-        "auto_create_account": settings.OIDC_AUTO_CREATE_ACCOUNT,
-        "username_field": settings.OIDC_USERNAME_FIELD,
-    }
-
-
 def discover(issuer_url):
-    if issuer_url in _discovery_cache:
-        return _discovery_cache[issuer_url]
+    cached = _discovery_cache.get(issuer_url)
+    if cached and time.monotonic() - cached[1] < _DISCOVERY_TTL:
+        return cached[0]
     url = issuer_url.rstrip("/") + "/.well-known/openid-configuration"
     try:
-        with urllib.request.urlopen(url) as resp:
+        with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT) as resp:
             doc = json.loads(resp.read().decode())
     except Exception as exc:
         raise OIDCError(f"Failed to fetch OIDC discovery document: {exc}") from exc
-    _discovery_cache[issuer_url] = doc
+    _discovery_cache[issuer_url] = (doc, time.monotonic())
     return doc
 
 
@@ -73,7 +66,7 @@ def exchange_code(code, redirect_uri):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode())
     except urllib.request.HTTPError as exc:
         body = exc.read().decode()
@@ -132,7 +125,7 @@ def get_userinfo(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode())
     except Exception as exc:
         raise OIDCError(f"Userinfo request failed: {exc}") from exc
@@ -159,6 +152,8 @@ def get_or_create_user(claims, access_token):
             if userinfo is None:
                 userinfo = get_userinfo(access_token)
             groups = userinfo.get("groups", [])
+        if isinstance(groups, str):
+            groups = groups.split()
         if admin_group not in groups:
             raise OIDCError(
                 f"User is not a member of the required group '{admin_group}'"
