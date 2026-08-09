@@ -100,3 +100,24 @@ def test_member_list_blocked_when_enforced(member, membership, client, configura
     )
     assert response.status_code == 302
     assert response.url == reverse("common:oidc-login")
+
+
+@pytest.mark.django_db
+def test_share_warning_shown_without_enforcement(
+    member, membership, client, configuration
+):
+    response = client.get(dashboard_url(member))
+    assert "Please do not share this page" in response.content.decode()
+
+
+@pytest.mark.django_db
+@override_settings(**OIDC_ON)
+def test_share_warning_hidden_when_enforced(member, membership, client, configuration):
+    # With a matching OIDC session the page renders; the "do not share" warning
+    # is hidden because the token link cannot be reused by others.
+    session = client.session
+    session["oidc_member_email"] = member.email
+    session.save()
+    response = client.get(dashboard_url(member))
+    assert response.status_code == 200
+    assert "Please do not share this page" not in response.content.decode()

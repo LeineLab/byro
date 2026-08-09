@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.urls import reverse
 
@@ -144,3 +145,41 @@ def test_callback_admin_logs_into_office(mock_exchange, client):
     assert response.status_code == 302
     assert response.url == "/"
     assert "_auth_user_id" in client.session
+
+
+@pytest.mark.django_db
+@override_settings(
+    OIDC_ISSUER_URL="https://issuer.example",
+    OIDC_CLIENT_ID="client",
+    OIDC_ADMIN_GROUP="admins",
+    OIDC_AUTO_CREATE_ACCOUNT=True,
+    OIDC_USERNAME_FIELD="preferred_username",
+)
+@patch(
+    "byro.common.views.exchange_code",
+    return_value={"id_token": "tok", "access_token": "at"},
+)
+def test_callback_non_admin_creates_no_account_with_auto_create(
+    mock_exchange, member, client
+):
+    # With auto_create_account on, a user WITHOUT the admin group must not get a
+    # local (admin) account created; they are routed to their member page.
+    User = get_user_model()
+    before = User.objects.count()
+    claims = {
+        "email": member.email,
+        "email_verified": True,
+        "groups": ["users"],
+        "preferred_username": "not-an-admin",
+    }
+    with patch("byro.common.views.validate_id_token", return_value=claims):
+        response = _callback(client)
+
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "public:memberpage:member.dashboard",
+        kwargs={"secret_token": member.profile_memberpage.secret_token},
+    )
+    assert User.objects.count() == before
+    assert not User.objects.filter(username="not-an-admin").exists()
+    assert "_auth_user_id" not in client.session
