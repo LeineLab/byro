@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.cache import add_never_cache_headers
 from django.utils.timezone import now
 from django.views.generic import DetailView, ListView
 from django.views.generic.edit import FormMixin
@@ -31,8 +32,14 @@ class OIDCMemberPageMixin:
     def dispatch(self, request, *args, **kwargs):
         denied = self.enforce_oidc_login(request, kwargs.get("secret_token"))
         if denied is not None:
-            return denied
-        return super().dispatch(request, *args, **kwargs)
+            response = denied
+        else:
+            response = super().dispatch(request, *args, **kwargs)
+        # Member pages are private (token-secured, personal data): never let a
+        # browser or intermediary cache store them. This also prevents a stale
+        # page from being served out of the browser's back/forward cache.
+        add_never_cache_headers(response)
+        return response
 
     def memberpage_login_enforced(self):
         """Whether member pages are gated behind a matching OIDC login."""
