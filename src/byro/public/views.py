@@ -34,8 +34,19 @@ class OIDCMemberPageMixin:
             return denied
         return super().dispatch(request, *args, **kwargs)
 
+    def memberpage_login_enforced(self):
+        """Whether member pages are gated behind a matching OIDC login."""
+        return bool(settings.OIDC_ENFORCE_MEMBERPAGE_LOGIN and is_oidc_configured())
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # When a matching OIDC login is required, the token link cannot be reused
+        # by others, so the "do not share this page" warning is hidden.
+        context["memberpage_login_enforced"] = self.memberpage_login_enforced()
+        return context
+
     def enforce_oidc_login(self, request, secret_token):
-        if not (settings.OIDC_ENFORCE_MEMBERPAGE_LOGIN and is_oidc_configured()):
+        if not self.memberpage_login_enforced():
             return None
         # Office staff (backend login) may always open member pages.
         if request.user.is_authenticated:
