@@ -131,33 +131,51 @@ def get_userinfo(access_token):
         raise OIDCError(f"Userinfo request failed: {exc}") from exc
 
 
+def is_admin(claims, access_token):
+    """Whether the authenticated user should get office (admin) access.
+
+    If no admin group is configured every user is treated as an admin, matching
+    the historic behaviour where OIDC granted office access to everyone.
+    """
+    admin_group = settings.OIDC_ADMIN_GROUP
+    if not admin_group:
+        return True
+    groups = claims.get("groups")
+    if groups is None:
+        groups = get_userinfo(access_token).get("groups", [])
+    if isinstance(groups, str):
+        groups = groups.split()
+    return admin_group in groups
+
+
+def get_verified_email(claims, access_token):
+    """Return the user's email address, rejecting explicitly unverified ones."""
+    email = claims.get("email")
+    verified = claims.get("email_verified")
+    if email is None or verified is None:
+        userinfo = get_userinfo(access_token)
+        if email is None:
+            email = userinfo.get("email")
+        if verified is None:
+            verified = userinfo.get("email_verified")
+    if not email:
+        raise OIDCError("OIDC response did not include an email address")
+    if verified is False:
+        raise OIDCError("OIDC email address is not verified")
+    return email
+
+
 def get_or_create_user(claims, access_token):
     User = get_user_model()
     username_field = settings.OIDC_USERNAME_FIELD
     username = claims.get(username_field)
 
-    userinfo = None
     if not username:
-        userinfo = get_userinfo(access_token)
-        username = userinfo.get(username_field)
+        username = get_userinfo(access_token).get(username_field)
     if not username:
         raise OIDCError(
             f"OIDC claim '{username_field}' not found in ID token or userinfo"
         )
-
-    admin_group = settings.OIDC_ADMIN_GROUP
-    if admin_group:
-        groups = claims.get("groups")
-        if groups is None:
-            if userinfo is None:
-                userinfo = get_userinfo(access_token)
-            groups = userinfo.get("groups", [])
-        if isinstance(groups, str):
-            groups = groups.split()
-        if admin_group not in groups:
-            raise OIDCError(
-                f"User is not a member of the required group '{admin_group}'"
-            )
 
     try:
         return User.objects.get(username=username)

@@ -17,9 +17,12 @@ from byro.common.oidc import (
     build_auth_url,
     exchange_code,
     get_or_create_user,
+    get_verified_email,
+    is_admin,
     is_oidc_configured,
     validate_id_token,
 )
+from byro.members.models import Member
 
 
 class LoginView(TemplateView):
@@ -134,6 +137,10 @@ class OIDCCallbackView(View):
 
             claims = validate_id_token(id_token, nonce)
             access_token = token_response.get("access_token", "")
+
+            if not is_admin(claims, access_token):
+                return self.redirect_to_memberpage(request, claims, access_token)
+
             user = get_or_create_user(claims, access_token)
 
             if not user.is_active:
@@ -155,3 +162,19 @@ class OIDCCallbackView(View):
         except OIDCError as e:
             messages.error(request, str(e))
             return redirect("common:login")
+
+    def redirect_to_memberpage(self, request, claims, access_token):
+        """Send a non-admin user to their own member page based on their email."""
+        email = get_verified_email(claims, access_token)
+        member = Member.objects.filter(email__iexact=email).first()
+        if member is None:
+            messages.error(
+                request,
+                _("No member was found for the email address %(email)s.")
+                % {"email": email},
+            )
+            return redirect("common:login")
+        return redirect(
+            "public:memberpage:member.dashboard",
+            secret_token=member.profile_memberpage.secret_token,
+        )
