@@ -3,6 +3,19 @@ from django.urls import reverse
 
 
 @pytest.mark.django_db
+def test_memberpage_is_not_cacheable(member, membership, client, configuration):
+    # Token-secured member pages must not be cached by browsers or proxies.
+    response = client.get(
+        reverse(
+            "public:memberpage:member.dashboard",
+            kwargs={"secret_token": member.profile_memberpage.secret_token},
+        )
+    )
+    assert response.status_code == 200
+    assert "no-store" in response.headers.get("Cache-Control", "")
+
+
+@pytest.mark.django_db
 def test_memberpage_access_dashboard(member, membership, client, configuration):
     response = client.get(
         reverse(
