@@ -128,6 +128,12 @@ class OIDCCallbackView(View):
 
             nonce = request.session.pop("oidc_nonce", "")
             request.session.pop("oidc_state", None)
+            # Persist the consumed state immediately (Django would otherwise only
+            # save the session at the end of the request). This closes the race
+            # window in which a duplicate callback request -- e.g. from browser
+            # prefetch -- would still pass the state check and redeem the
+            # single-use authorization code a second time.
+            request.session.save()
             redirect_uri = request.build_absolute_uri(reverse("common:oidc-callback"))
 
             token_response = exchange_code(code, redirect_uri)
