@@ -174,6 +174,9 @@ class OIDCCallbackView(View):
                 % {"email": email},
             )
             return redirect("common:login")
+        # Remember the verified email so that member pages can require a matching
+        # OIDC session when OIDC_ENFORCE_MEMBERPAGE_LOGIN is enabled.
+        request.session["oidc_member_email"] = email
         return redirect(
             "public:memberpage:member.dashboard",
             secret_token=member.profile_memberpage.secret_token,

@@ -1,8 +1,10 @@
 import collections.abc
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import Q
 from django.http import Http404, HttpResponseRedirect
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.timezone import now
 from django.views.generic import DetailView, ListView
@@ -11,12 +13,50 @@ from django.views.generic.edit import FormMixin
 from byro.bookkeeping.models import Booking
 from byro.bookkeeping.special_accounts import SpecialAccounts
 from byro.common.models.configuration import Configuration, MemberViewLevel
+from byro.common.oidc import is_oidc_configured
 from byro.members.models import Member
 from byro.office.signals import member_dashboard_tile
 from byro.public.forms import PrivacyConsentForm
 
 
-class MemberBaseView(DetailView):
+class OIDCMemberPageMixin:
+    """Optionally require a matching OIDC login to view a member page.
+
+    When OIDC_ENFORCE_MEMBERPAGE_LOGIN is enabled (and OIDC is configured) the
+    secret token alone no longer grants access: the visitor must either be logged
+    into the office backend, or hold an OIDC session whose verified email matches
+    the member's email. Otherwise they are sent to the OIDC login, which routes
+    them to their own member page."""
+
+    def dispatch(self, request, *args, **kwargs):
+        denied = self.enforce_oidc_login(request, kwargs.get("secret_token"))
+        if denied is not None:
+            return denied
+        return super().dispatch(request, *args, **kwargs)
+
+    def enforce_oidc_login(self, request, secret_token):
+        if not (settings.OIDC_ENFORCE_MEMBERPAGE_LOGIN and is_oidc_configured()):
+            return None
+        # Office staff (backend login) may always open member pages.
+        if request.user.is_authenticated:
+            return None
+        member = Member.all_objects.filter(
+            profile_memberpage__secret_token=secret_token
+        ).first()
+        if member is None:
+            # Unknown token: let the view raise its usual 404, don't leak here.
+            return None
+        session_email = request.session.get("oidc_member_email")
+        if (
+            session_email
+            and member.email
+            and session_email.casefold() == member.email.casefold()
+        ):
+            return None
+        return redirect("common:oidc-login")
+
+
+class MemberBaseView(OIDCMemberPageMixin, DetailView):
     slug_field = "profile_memberpage__secret_token"
     slug_url_kwarg = "secret_token"
 
@@ -101,7 +141,7 @@ class MemberView(FormMixin, MemberBaseView):
         return HttpResponseRedirect(self.get_success_url())
 
 
-class MemberListView(ListView):
+class MemberListView(OIDCMemberPageMixin, ListView):
     template_name = "public/members/memberlist.html"
     paginate_by = 50
     context_object_name = "members"
