@@ -244,6 +244,9 @@ OIDC_AUTO_CREATE_ACCOUNT = config.getboolean(
 OIDC_USERNAME_FIELD = config.get(
     "oidc", "username_field", fallback="preferred_username"
 ).strip()
+OIDC_ENFORCE_MEMBERPAGE_LOGIN = config.getboolean(
+    "oidc", "enforce_memberpage_login", fallback=False
+)
 
 AUTH_PASSWORD_VALIDATORS = [
     {

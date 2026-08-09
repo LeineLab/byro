@@ -58,6 +58,10 @@ CONFIG = {
             "default": "preferred_username",
             "env": os.getenv("BYRO_OIDC_USERNAME_FIELD"),
         },
+        "enforce_memberpage_login": {
+            "default": "false",
+            "env": os.getenv("BYRO_OIDC_ENFORCE_MEMBERPAGE_LOGIN"),
+        },
     },
 }
 
