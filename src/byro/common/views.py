@@ -1,6 +1,7 @@
 import secrets
 import urllib
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.http import Http404, HttpRequest, HttpResponseRedirect
@@ -25,8 +26,43 @@ from byro.common.oidc import (
 from byro.members.models import Member
 
 
+def oidc_redirect_uri():
+    """Build the OIDC callback URL from the configured SITE_URL rather than the
+    incoming request. This keeps the redirect_uri byte-for-byte identical between
+    the authorization request and the token exchange, and uses the correct scheme
+    (https) even when byro sits behind a TLS-terminating proxy that Django is not
+    told about. It must match the redirect URI registered in the OIDC provider."""
+    return urllib.parse.urljoin(settings.SITE_URL, reverse("common:oidc-callback"))
+
+
+def member_home(request: HttpRequest) -> HttpResponseRedirect:
+    """Send a member with an active OIDC session to their own member page.
+
+    Members are not Django-authenticated; their session only carries the verified
+    email set during the OIDC callback. If the email no longer maps to a member,
+    the stale marker is dropped so we fall back to the login page without looping.
+    """
+    email = request.session.get("oidc_member_email")
+    if email:
+        member = Member.objects.filter(email__iexact=email).first()
+        if member:
+            return redirect(
+                "public:memberpage:member.dashboard",
+                secret_token=member.profile_memberpage.secret_token,
+            )
+        request.session.pop("oidc_member_email", None)
+    return redirect("common:login")
+
+
 class LoginView(TemplateView):
     template_name = "common/auth/login.html"
+
+    def get(self, request, *args, **kwargs):
+        # A member with an active OIDC session should land on their member page,
+        # not on the login mask again.
+        if request.session.get("oidc_member_email"):
+            return redirect("common:member-home")
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -65,14 +101,16 @@ class LoginView(TemplateView):
 
 
 def logout_view(request: HttpRequest) -> HttpResponseRedirect:
-    if request.user:
+    if request.user.is_authenticated:
         LogEntry.objects.create(
             content_object=request.user,
             user=request.user,
             action_type="byro.common.logout",
         )
+    # Flushes the session, which also clears a member's OIDC session marker
+    # (oidc_member_email).
     logout(request)
-    return redirect("/")
+    return redirect("common:login")
 
 
 class LogInfoView(TemplateView):
@@ -93,7 +131,7 @@ class OIDCLoginView(View):
         nonce = secrets.token_urlsafe(32)
         request.session["oidc_state"] = state
         request.session["oidc_nonce"] = nonce
-        redirect_uri = request.build_absolute_uri(reverse("common:oidc-callback"))
+        redirect_uri = oidc_redirect_uri()
         try:
             auth_url = build_auth_url(redirect_uri, state, nonce)
         except OIDCError as e:
@@ -134,7 +172,7 @@ class OIDCCallbackView(View):
             # prefetch -- would still pass the state check and redeem the
             # single-use authorization code a second time.
             request.session.save()
-            redirect_uri = request.build_absolute_uri(reverse("common:oidc-callback"))
+            redirect_uri = oidc_redirect_uri()
 
             token_response = exchange_code(code, redirect_uri)
             id_token = token_response.get("id_token")

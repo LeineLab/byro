@@ -6,6 +6,14 @@ from django.test import override_settings
 from django.urls import reverse
 
 from byro.common import oidc
+from byro.common.views import oidc_redirect_uri
+
+
+@override_settings(SITE_URL="https://byro.example.org")
+def test_oidc_redirect_uri_uses_site_url():
+    # Must be built from SITE_URL (https), not the incoming request scheme.
+    assert oidc_redirect_uri() == "https://byro.example.org/oidc/callback/"
+
 
 # --- oidc.is_admin ------------------------------------------------------------
 
