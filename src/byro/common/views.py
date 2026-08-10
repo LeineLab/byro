@@ -89,8 +89,10 @@ class LoginView(TemplateView):
             )
             return redirect("common:login")
 
+        # Start a fresh session so a re-login invalidates all previous session
+        # values (e.g. a member marker from an earlier OIDC login).
+        request.session.flush()
         login(request, user)
-        request.session.pop("oidc_member_email", None)
         LogEntry.objects.create(
             content_object=user, user=user, action_type="byro.common.login.success"
         )
@@ -192,12 +194,12 @@ class OIDCCallbackView(View):
                 messages.error(request, _("User account is deactivated."))
                 return redirect("common:login")
 
+            # Start a fresh session so a re-login invalidates all previous
+            # session values (e.g. a member marker left over after ending an
+            # impersonation), and the admin reliably gets office access.
+            request.session.flush()
             user.backend = "django.contrib.auth.backends.ModelBackend"
             login(request, user)
-            # Drop any member marker left over from an earlier member session
-            # (e.g. after ending an impersonation), so the admin gets office
-            # access and not the member sidebar/redirects.
-            request.session.pop("oidc_member_email", None)
             LogEntry.objects.create(
                 content_object=user,
                 user=user,
@@ -223,8 +225,10 @@ class OIDCCallbackView(View):
                 % {"email": email},
             )
             return redirect("common:login")
-        # Remember the verified email so that member pages can require a matching
-        # OIDC session when OIDC_ENFORCE_MEMBERPAGE_LOGIN is enabled.
+        # Start a fresh session (drops any previous Django auth or stale markers,
+        # so a re-login fully invalidates the prior session), then record the
+        # verified email so enforced member pages can match it.
+        logout(request)
         request.session["oidc_member_email"] = email
         return redirect(
             "public:memberpage:member.dashboard",

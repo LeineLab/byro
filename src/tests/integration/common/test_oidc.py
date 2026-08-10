@@ -191,3 +191,40 @@ def test_callback_non_admin_creates_no_account_with_auto_create(
     assert User.objects.count() == before
     assert not User.objects.filter(username="not-an-admin").exists()
     assert "_auth_user_id" not in client.session
+
+
+@pytest.mark.django_db
+@override_settings(
+    OIDC_ISSUER_URL="https://issuer.example",
+    OIDC_CLIENT_ID="client",
+    OIDC_ADMIN_GROUP="admins",
+    OIDC_AUTO_CREATE_ACCOUNT=True,
+    OIDC_USERNAME_FIELD="preferred_username",
+)
+@patch(
+    "byro.common.views.exchange_code",
+    return_value={"id_token": "tok", "access_token": "at"},
+)
+def test_callback_admin_login_clears_stale_member_marker(mock_exchange, client):
+    # A member marker from an earlier session (e.g. after impersonation) must not
+    # survive a fresh admin login.
+    session = client.session
+    session["oidc_state"] = "state"
+    session["oidc_nonce"] = "nonce"
+    session["oidc_member_email"] = "old-member@example.com"
+    session.save()
+    claims = {
+        "email": "boss@hacker.space",
+        "email_verified": True,
+        "groups": ["admins"],
+        "preferred_username": "boss",
+    }
+    with patch("byro.common.views.validate_id_token", return_value=claims):
+        response = client.get(
+            reverse("common:oidc-callback"), {"state": "state", "code": "code"}
+        )
+
+    assert response.status_code == 302
+    assert response.url == "/"
+    assert "_auth_user_id" in client.session
+    assert "oidc_member_email" not in client.session
