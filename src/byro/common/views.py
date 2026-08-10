@@ -5,8 +5,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.http import Http404, HttpRequest, HttpResponseRedirect
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.cache import add_never_cache_headers
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import now
 from django.utils.translation import gettext as _
@@ -35,6 +36,30 @@ def oidc_redirect_uri():
     return urllib.parse.urljoin(settings.SITE_URL, reverse("common:oidc-callback"))
 
 
+def member_target_response(request, email):
+    """Resolve a verified member email to the right response:
+
+    - a redirect to the single matching member page,
+    - a selection page when several members share the same email (e.g. a family
+      using one address), or
+    - ``None`` when no member matches.
+    """
+    members = list(Member.objects.filter(email__iexact=email))
+    if len(members) == 1:
+        return redirect(
+            "public:memberpage:member.dashboard",
+            secret_token=members[0].profile_memberpage.secret_token,
+        )
+    if members:
+        response = render(
+            request, "common/auth/member_select.html", {"members": members}
+        )
+        # Personal data, keep it out of any cache.
+        add_never_cache_headers(response)
+        return response
+    return None
+
+
 def member_home(request: HttpRequest) -> HttpResponseRedirect:
     """Send a member with an active OIDC session to their own member page.
 
@@ -44,12 +69,9 @@ def member_home(request: HttpRequest) -> HttpResponseRedirect:
     """
     email = request.session.get("oidc_member_email")
     if email:
-        member = Member.objects.filter(email__iexact=email).first()
-        if member:
-            return redirect(
-                "public:memberpage:member.dashboard",
-                secret_token=member.profile_memberpage.secret_token,
-            )
+        response = member_target_response(request, email)
+        if response is not None:
+            return response
         request.session.pop("oidc_member_email", None)
     return redirect("common:login")
 
@@ -77,9 +99,12 @@ class LoginView(TemplateView):
         if request.session.get("oidc_member_email"):
             return redirect("common:member-home")
         # Optionally skip the password login form and go straight to the identity
-        # provider. Still render the page after a failed SSO attempt
-        # (?sso_error=1) so the error is shown instead of looping to the IdP.
-        if password_login_disabled() and "sso_error" not in request.GET:
+        # provider. We still render the page after a failed SSO attempt
+        # (?sso_error=1) or right after a logout (?loggedout=1) so the user is not
+        # bounced to the IdP -- and, with an active IdP session, silently logged
+        # in again.
+        skip_auto_redirect = "sso_error" in request.GET or "loggedout" in request.GET
+        if password_login_disabled() and not skip_auto_redirect:
             return redirect("common:oidc-login")
         return super().get(request, *args, **kwargs)
 
@@ -135,7 +160,11 @@ def logout_view(request: HttpRequest) -> HttpResponseRedirect:
     # Flushes the session, which also clears a member's OIDC session marker
     # (oidc_member_email).
     logout(request)
-    return redirect("common:login")
+    messages.info(request, _("You have been logged out."))
+    # The loggedout marker stops the login page from immediately bouncing back to
+    # the identity provider when password login is disabled, so the user is not
+    # silently logged in again by an still-active IdP session.
+    return redirect(f"{reverse('common:login')}?loggedout=1")
 
 
 class LogInfoView(TemplateView):
@@ -237,10 +266,13 @@ class OIDCCallbackView(View):
             return sso_error_redirect()
 
     def redirect_to_memberpage(self, request, claims, access_token):
-        """Send a non-admin user to their own member page based on their email."""
+        """Send a non-admin user to their own member page based on their email.
+
+        When several members share the email address, a selection page is shown
+        instead of picking one arbitrarily.
+        """
         email = get_verified_email(claims, access_token)
-        member = Member.objects.filter(email__iexact=email).first()
-        if member is None:
+        if not Member.objects.filter(email__iexact=email).exists():
             messages.error(
                 request,
                 _("No member was found for the email address %(email)s.")
@@ -252,7 +284,4 @@ class OIDCCallbackView(View):
         # verified email so enforced member pages can match it.
         logout(request)
         request.session["oidc_member_email"] = email
-        return redirect(
-            "public:memberpage:member.dashboard",
-            secret_token=member.profile_memberpage.secret_token,
-        )
+        return member_target_response(request, email)

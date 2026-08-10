@@ -1,0 +1,23 @@
+{% extends "office/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Choose member page" %}{% endblock %}
+
+{% block headline %}{% trans "Choose member page" %}{% endblock %}
+
+{% block content %}
+    <div class="col-md-6">
+        <p>{% blocktrans trimmed %}
+            Several member records use your email address. Choose which member page
+            you want to open.
+        {% endblocktrans %}</p>
+        <div class="list-group">
+            {% for member in members %}
+                <a class="list-group-item list-group-item-action"
+                   href="{% url 'public:memberpage:member.dashboard' secret_token=member.profile_memberpage.secret_token %}">
+                    {{ member.name }}{% if member.number %} (#{{ member.number }}){% endif %}
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
