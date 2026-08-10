@@ -62,6 +62,10 @@ CONFIG = {
             "default": "false",
             "env": os.getenv("BYRO_OIDC_ENFORCE_MEMBERPAGE_LOGIN"),
         },
+        "disable_password_login": {
+            "default": "false",
+            "env": os.getenv("BYRO_OIDC_DISABLE_PASSWORD_LOGIN"),
+        },
     },
 }
 

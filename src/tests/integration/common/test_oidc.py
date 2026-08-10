@@ -125,7 +125,7 @@ def test_callback_non_admin_unknown_email_shows_error(mock_exchange, client):
         response = _callback(client)
 
     assert response.status_code == 302
-    assert response.url == reverse("common:login")
+    assert response.url == reverse("common:login") + "?sso_error=1"
 
 
 @pytest.mark.django_db

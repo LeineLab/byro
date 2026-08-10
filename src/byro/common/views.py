@@ -54,6 +54,20 @@ def member_home(request: HttpRequest) -> HttpResponseRedirect:
     return redirect("common:login")
 
 
+def password_login_disabled():
+    """Whether the username/password login is turned off in favour of OIDC. Only
+    takes effect while OIDC is configured, so a misconfiguration cannot lock
+    everyone out."""
+    return bool(settings.OIDC_DISABLE_PASSWORD_LOGIN and is_oidc_configured())
+
+
+def sso_error_redirect():
+    """Redirect back to the login page after a failed SSO attempt, marked so the
+    page is shown (with the error) instead of immediately bouncing to the IdP
+    again when password login is disabled."""
+    return redirect(f"{reverse('common:login')}?sso_error=1")
+
+
 class LoginView(TemplateView):
     template_name = "common/auth/login.html"
 
@@ -62,14 +76,22 @@ class LoginView(TemplateView):
         # not on the login mask again.
         if request.session.get("oidc_member_email"):
             return redirect("common:member-home")
+        # Optionally skip the password login form and go straight to the identity
+        # provider. Still render the page after a failed SSO attempt
+        # (?sso_error=1) so the error is shown instead of looping to the IdP.
+        if password_login_disabled() and "sso_error" not in request.GET:
+            return redirect("common:oidc-login")
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["oidc_enabled"] = is_oidc_configured()
+        ctx["password_login_enabled"] = not password_login_disabled()
         return ctx
 
     def post(self, request: HttpRequest, *args, **kwargs) -> HttpResponseRedirect:
+        if password_login_disabled():
+            return redirect("common:oidc-login")
         username = request.POST.get("username")
         password = request.POST.get("password")
         user = authenticate(username=username, password=password)
@@ -139,7 +161,7 @@ class OIDCLoginView(View):
             auth_url = build_auth_url(redirect_uri, state, nonce)
         except OIDCError as e:
             messages.error(request, str(e))
-            return redirect("common:login")
+            return sso_error_redirect()
         return HttpResponseRedirect(auth_url)
 
 
@@ -154,7 +176,7 @@ class OIDCCallbackView(View):
             messages.error(
                 request, _("SSO login failed: %(error)s") % {"error": error_description}
             )
-            return redirect("common:login")
+            return sso_error_redirect()
 
         try:
             state = request.GET.get("state", "")
@@ -192,7 +214,7 @@ class OIDCCallbackView(View):
 
             if not user.is_active:
                 messages.error(request, _("User account is deactivated."))
-                return redirect("common:login")
+                return sso_error_redirect()
 
             # Start a fresh session so a re-login invalidates all previous
             # session values (e.g. a member marker left over after ending an
@@ -212,7 +234,7 @@ class OIDCCallbackView(View):
 
         except OIDCError as e:
             messages.error(request, str(e))
-            return redirect("common:login")
+            return sso_error_redirect()
 
     def redirect_to_memberpage(self, request, claims, access_token):
         """Send a non-admin user to their own member page based on their email."""
@@ -224,7 +246,7 @@ class OIDCCallbackView(View):
                 _("No member was found for the email address %(email)s.")
                 % {"email": email},
             )
-            return redirect("common:login")
+            return sso_error_redirect()
         # Start a fresh session (drops any previous Django auth or stale markers,
         # so a re-login fully invalidates the prior session), then record the
         # verified email so enforced member pages can match it.
