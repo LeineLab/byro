@@ -28,6 +28,7 @@ class PermissionMiddleware:
     UNAUTHENTICATED_URLS = (
         "login",
         "logout",
+        "member-home",
         "log.info",
         "oidc-login",
         "oidc-callback",
@@ -60,6 +61,10 @@ class PermissionMiddleware:
                         break
 
         if not allow:
+            # A member with an active OIDC session is not Django-authenticated;
+            # send them to their member page instead of the login mask.
+            if request.session.get("oidc_member_email"):
+                return redirect("common:member-home")
             return redirect(reverse("common:login") + f"?next={request.path}")
         else:
             return self.get_response(request)

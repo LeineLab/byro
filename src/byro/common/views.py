@@ -90,6 +90,7 @@ class LoginView(TemplateView):
             return redirect("common:login")
 
         login(request, user)
+        request.session.pop("oidc_member_email", None)
         LogEntry.objects.create(
             content_object=user, user=user, action_type="byro.common.login.success"
         )
@@ -193,6 +194,10 @@ class OIDCCallbackView(View):
 
             user.backend = "django.contrib.auth.backends.ModelBackend"
             login(request, user)
+            # Drop any member marker left over from an earlier member session
+            # (e.g. after ending an impersonation), so the admin gets office
+            # access and not the member sidebar/redirects.
+            request.session.pop("oidc_member_email", None)
             LogEntry.objects.create(
                 content_object=user,
                 user=user,
