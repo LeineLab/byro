@@ -247,6 +247,9 @@ OIDC_USERNAME_FIELD = config.get(
 OIDC_ENFORCE_MEMBERPAGE_LOGIN = config.getboolean(
     "oidc", "enforce_memberpage_login", fallback=False
 )
+OIDC_DISABLE_PASSWORD_LOGIN = config.getboolean(
+    "oidc", "disable_password_login", fallback=False
+)
 
 AUTH_PASSWORD_VALIDATORS = [
     {

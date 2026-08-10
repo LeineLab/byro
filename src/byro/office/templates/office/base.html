@@ -66,7 +66,14 @@
         </nav>
         <div id="page-wrapper">
             <nav class="nav flex-column sidebar">
-                {% if request.user.is_anonymous %}
+                {% if request.user.is_anonymous and request.session.oidc_member_email %}
+                    <a class="nav-link" href="{% url 'common:member-home' %}">
+                        <span class="fa fa-user"></span> {% trans "My member page" %}
+                    </a>
+                    <a class="nav-link" href="{% url 'common:logout' %}">
+                        <span class="fa fa-sign-out"></span> {% trans "Log out" %}
+                    </a>
+                {% elif request.user.is_anonymous %}
                     <a class="nav-link {% if url_name == "login" %}active{% endif %}" href="{% url 'common:login' %}">
                         <span class="fa fa-sign-in"></span> {% trans "Log in" %}
                     </a>
