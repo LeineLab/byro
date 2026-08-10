@@ -1,6 +1,8 @@
 import pytest
 from django.urls import reverse
 
+from byro.members.models import Member
+
 
 def _member_dashboard_url(member):
     return reverse(
@@ -21,6 +23,22 @@ def test_member_home_redirects_to_own_page(member, client, configuration):
     response = client.get(reverse("common:member-home"))
     assert response.status_code == 302
     assert response.url == _member_dashboard_url(member)
+
+
+@pytest.mark.django_db
+def test_member_home_shows_selection_for_shared_email(member, client, configuration):
+    # A family sharing one email has several member records: offer a choice
+    # instead of redirecting to an arbitrary one.
+    other = Member.objects.create(email=member.email, name="Second Family Member")
+    _set_member_session(client, member.email)
+    response = client.get(reverse("common:member-home"))
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert member.name in content
+    assert other.name in content
+    # both member pages are linked
+    assert member.profile_memberpage.secret_token in content
+    assert other.profile_memberpage.secret_token in content
 
 
 @pytest.mark.django_db

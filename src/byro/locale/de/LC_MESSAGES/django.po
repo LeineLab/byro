@@ -391,6 +391,18 @@ msgstr "Zu den Eingaben wurde kein Nutzer gefunden."
 msgid "You have been logged out."
 msgstr "Du wurdest abgemeldet."
 
+#: byro/common/templates/common/auth/member_select.html
+msgid "Choose member page"
+msgstr "Mitgliedsseite auswählen"
+
+#: byro/common/templates/common/auth/member_select.html
+msgid ""
+"Several member records use your email address. Choose which member page you "
+"want to open."
+msgstr ""
+"Mehrere Mitgliedseinträge nutzen deine E-Mail-Adresse. Wähle, welche "
+"Mitgliedsseite du öffnen möchtest."
+
 #: byro/common/views.py:30
 msgid "User account is deactivated."
 msgstr "Account ist deaktiviert."

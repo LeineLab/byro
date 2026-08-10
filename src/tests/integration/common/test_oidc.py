@@ -115,6 +115,30 @@ def test_callback_non_admin_redirects_to_memberpage(mock_exchange, member, clien
     "byro.common.views.exchange_code",
     return_value={"id_token": "tok", "access_token": "at"},
 )
+def test_callback_non_admin_shared_email_shows_selection(mock_exchange, member, client):
+    from byro.members.models import Member
+
+    other = Member.objects.create(email=member.email, name="Second Family Member")
+    claims = {"email": member.email, "email_verified": True, "groups": ["users"]}
+    with patch("byro.common.views.validate_id_token", return_value=claims):
+        response = _callback(client)
+
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert member.name in content
+    assert other.name in content
+
+
+@pytest.mark.django_db
+@override_settings(
+    OIDC_ISSUER_URL="https://issuer.example",
+    OIDC_CLIENT_ID="client",
+    OIDC_ADMIN_GROUP="admins",
+)
+@patch(
+    "byro.common.views.exchange_code",
+    return_value={"id_token": "tok", "access_token": "at"},
+)
 def test_callback_non_admin_unknown_email_shows_error(mock_exchange, client):
     claims = {
         "email": "stranger@example.com",
