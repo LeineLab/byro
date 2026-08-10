@@ -61,5 +61,5 @@ def test_logout_clears_member_session(member, client, configuration):
     _set_member_session(client, member.email)
     response = client.get(reverse("common:logout"))
     assert response.status_code == 302
-    assert response.url == reverse("common:login")
+    assert response.url == reverse("common:login") + "?loggedout=1"
     assert "oidc_member_email" not in client.session

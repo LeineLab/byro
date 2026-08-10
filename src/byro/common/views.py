@@ -77,9 +77,12 @@ class LoginView(TemplateView):
         if request.session.get("oidc_member_email"):
             return redirect("common:member-home")
         # Optionally skip the password login form and go straight to the identity
-        # provider. Still render the page after a failed SSO attempt
-        # (?sso_error=1) so the error is shown instead of looping to the IdP.
-        if password_login_disabled() and "sso_error" not in request.GET:
+        # provider. We still render the page after a failed SSO attempt
+        # (?sso_error=1) or right after a logout (?loggedout=1) so the user is not
+        # bounced to the IdP -- and, with an active IdP session, silently logged
+        # in again.
+        skip_auto_redirect = "sso_error" in request.GET or "loggedout" in request.GET
+        if password_login_disabled() and not skip_auto_redirect:
             return redirect("common:oidc-login")
         return super().get(request, *args, **kwargs)
 
@@ -135,7 +138,11 @@ def logout_view(request: HttpRequest) -> HttpResponseRedirect:
     # Flushes the session, which also clears a member's OIDC session marker
     # (oidc_member_email).
     logout(request)
-    return redirect("common:login")
+    messages.info(request, _("You have been logged out."))
+    # The loggedout marker stops the login page from immediately bouncing back to
+    # the identity provider when password login is disabled, so the user is not
+    # silently logged in again by an still-active IdP session.
+    return redirect(f"{reverse('common:login')}?loggedout=1")
 
 
 class LogInfoView(TemplateView):

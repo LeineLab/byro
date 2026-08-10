@@ -49,3 +49,17 @@ def test_default_login_shows_password_form(client, configuration):
     response = client.get(reverse("common:login"))
     assert response.status_code == 200
     assert 'name="password"' in response.content.decode()
+
+
+@pytest.mark.django_db
+@override_settings(OIDC_DISABLE_PASSWORD_LOGIN=True, **OIDC_ON)
+def test_logout_does_not_auto_redirect_to_idp(client, configuration):
+    # Logout lands on the login page (with the SSO button); it must not bounce
+    # straight back to the IdP, which would silently log the user in again.
+    response = client.get(reverse("common:logout"))
+    assert response.status_code == 302
+    assert response.url == reverse("common:login") + "?loggedout=1"
+
+    page = client.get(response.url)
+    assert page.status_code == 200
+    assert "SSO" in page.content.decode()

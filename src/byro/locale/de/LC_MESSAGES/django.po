@@ -387,6 +387,10 @@ msgstr "Benutzer angemeldet"
 msgid "No user account matches the entered credentials."
 msgstr "Zu den Eingaben wurde kein Nutzer gefunden."
 
+#: byro/common/views.py
+msgid "You have been logged out."
+msgstr "Du wurdest abgemeldet."
+
 #: byro/common/views.py:30
 msgid "User account is deactivated."
 msgstr "Account ist deaktiviert."
