@@ -6,9 +6,13 @@ updates:
       interval: daily
     open-pull-requests-limit: 10
     ignore:
+    # Django is a range requirement (>=5.2,<5.3) without a lockfile, so
+    # Dependabot has no current version to derive update-types from and
+    # would only ever widen the range. Ignore by version instead and raise
+    # this bound when moving to the next LTS.
     - dependency-name: Django
       versions:
-        - "> 4.2"
+        - ">= 5.3"
     - dependency-name: python
       update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: pip
@@ -17,6 +21,10 @@ updates:
       interval: daily
   - package-ecosystem: docker
     directory: "/src"
+    schedule:
+      interval: daily
+  - package-ecosystem: docker
+    directory: "/deploy"
     schedule:
       interval: daily
   - package-ecosystem: github-actions

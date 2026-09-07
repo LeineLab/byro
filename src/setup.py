@@ -42,7 +42,7 @@ cmdclass = {"build_py": CustomBuild}
 setup(
     name="byro",
     version=byro_version,
-    license="Apache License 2.0",
+    license="AGPL-3.0-only",
     python_requires=">=3.12",
     description="Membership and fees management for associations, clubs and groups",
     long_description=long_description,
@@ -57,7 +57,7 @@ setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Other Audience",
         "License :: OSI Approved",
-        "License :: OSI Approved :: Apache Software License",
+        "License :: OSI Approved :: GNU Affero General Public License v3",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
@@ -71,13 +71,14 @@ setup(
         "csscompressor~=0.9.5",  # 2017-11, no changelog, https://github.com/sprymix/csscompressor
         "dateparser>=1.1,<1.5",  # https://github.com/scrapinghub/dateparser/blob/master/HISTORY.rst
         "django-annoying~=0.10.0",  # https://github.com/skorokithakis/django-annoying/releases
-        "django-bootstrap4>=23.1,<26.2",  # http://django-bootstrap4.readthedocs.io/en/latest/history.html
+        "django-bootstrap4>=23.1,<26.3",  # http://django-bootstrap4.readthedocs.io/en/latest/history.html
         "django-compressor>=2.4,<5.0",  # https://django-compressor.readthedocs.io/en/latest/changelog/
         "django-extensions>=3.1,<4.2",  # https://github.com/django-extensions/django-extensions/blob/master/CHANGELOG.md
         "django-i18nfield>=1.9,<1.12",  # 2017-11, no changelog, https://github.com/raphaelm/django-i18nfield/
         "django-formset-js-improved==0.5.0.5",  # no changelog, https://github.com/pretix/django-formset-js
         "django-libsass>=0.8,<0.10",  # inactive, https://github.com/torchbox/django-libsass/blob/master/CHANGELOG.txt
         "django-localflavor>=3.0,<5.2",
+        "django-otp>=1.6,<1.8",  # https://github.com/django-otp/django-otp/blob/master/CHANGES.rst
         "django-select2>=7.7,<8.5",  # https://github.com/applegrew/django-select2/releases
         "django-solo>=2.1,<2.6",  # https://github.com/lazybird/django-solo/blob/master/CHANGES
         "Django>=5.2,<5.3",  # https://docs.djangoproject.com/en/5.2/releases/

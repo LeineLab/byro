@@ -1,3 +1,5 @@
+# Development image only (used by src/docker-compose.yml).
+# The production image is built from deploy/Dockerfile with the repository root as context.
 FROM python:3.12
 LABEL org.opencontainers.image.authors="byro team"
 
@@ -5,7 +7,7 @@ EXPOSE 8020
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y zsh gettext libjpeg-dev libmagic-dev && \
+    apt-get install -y zsh gettext libjpeg-dev libmagic-dev gnupg gpg-agent && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd uid1000 -d /home/uid1000

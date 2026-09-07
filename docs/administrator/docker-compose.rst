@@ -1,5 +1,13 @@
-Installation via docker-compose
-===============================
+Legacy setup: docker-compose files in ``production/`` (deprecated)
+===================================================================
+
+.. warning:: This setup is **deprecated**. It keeps working with the current
+             byro image, but it receives no new features and will be removed in a
+             later release. New installations should use
+             :doc:`installation-byroctl` (recommended) or
+             :doc:`installation-compose`. ``production/DEPRECATED.md`` in the
+             repository explains how to move an existing installation over
+             and lists the known problems of this setup.
 
 In the folder `production/` of the byro repository, you can find setup scripts
 and a `docker-compose.yml`, which will help you set up a production deployment of byro using docker.
@@ -39,6 +47,12 @@ Open this file in an editor, and configure the following aspects:
 `[site]`
     Change the URL to an URL your server is reachable on. If your server is not yet
     exposed to the world, you will need to enable `debug` to bypass Django URL security.
+
+`[pgp]`
+    The example configuration stores GnuPG data in ``/var/byro/data/gnupg``, which
+    is part of the byro data volume. The official byro image includes the
+    required GnuPG packages. Enable signing and encryption in the byro office
+    settings after the deployment is running.
 
 .. note:: Never expose your server to the world with `debug = True` enabled.
           This will allow users accessing the page to view potentially sensitive

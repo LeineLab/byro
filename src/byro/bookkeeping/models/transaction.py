@@ -317,6 +317,13 @@ class Booking(models.Model):
     )
 
     importer = models.CharField(null=True, max_length=500)
+    #: Stable identity of the imported bank transaction, used by
+    #: :mod:`byro.bookkeeping.bank_import` to detect duplicates across
+    #: repeated and overlapping imports. Unique (NULL values excepted), so
+    #: that concurrent imports cannot persist the same transaction twice.
+    import_identity = models.CharField(
+        null=True, blank=True, max_length=64, unique=True
+    )
     data = models.JSONField(null=True)
     source = models.ForeignKey(
         to="bookkeeping.RealTransactionSource",
@@ -344,6 +351,17 @@ class Booking(models.Model):
         if self.memo:
             return self.memo
         return self.transaction.find_memo()
+
+    @property
+    def counterparty_name(self):
+        """Name of the other party of an imported bank transaction.
+
+        ``counterparty_name`` is the key written by
+        :mod:`byro.bookkeeping.bank_import`; ``other_party`` is the legacy key
+        used by older importer plugins and the 2018 data migration.
+        """
+        data = self.data or {}
+        return data.get("counterparty_name") or data.get("other_party")
 
     @property
     def counter_bookings(self):

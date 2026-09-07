@@ -19,6 +19,7 @@ CONFIG = {
         "debug": {"default": "runserver" in sys.argv, "env": os.getenv("BYRO_DEBUG")},
         "url": {"default": "http://localhost", "env": os.getenv("BYRO_SITE_URL")},
         "https": {"env": os.getenv("BYRO_HTTPS")},
+        "trust_proxy": {"default": "False", "env": os.getenv("BYRO_TRUST_PROXY")},
     },
     "database": {
         "name": {"env": os.getenv("BYRO_DB_NAME")},
@@ -36,6 +37,13 @@ CONFIG = {
         "password": {"default": "", "env": os.getenv("BYRO_MAIL_PASSWORD")},
         "tls": {"default": "False", "env": os.getenv("BYRO_MAIL_TLS")},
         "ssl": {"default": "False", "env": os.getenv("BYRO_MAIL_SSL")},
+    },
+    "pgp": {
+        "backend": {
+            "default": "byro.mails.gnupg_backend.GnuPGBackend",
+            "env": os.getenv("BYRO_PGP_BACKEND"),
+        },
+        "home": {"default": "", "env": os.getenv("BYRO_PGP_HOME")},
     },
     "logging": {
         "email": {"default": "", "env": os.getenv("BYRO_LOGGING_EMAIL")},

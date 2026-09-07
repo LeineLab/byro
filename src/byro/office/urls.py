@@ -53,6 +53,11 @@ urlpatterns = [
         users.UserPasswordDisableView.as_view(),
         name="settings.users.disable-password",
     ),
+    path(
+        "settings/users/<int:pk>/regenerate-token",
+        users.UserApiTokenRegenerateView.as_view(),
+        name="settings.users.regenerate-token",
+    ),
     path("settings", settings.ConfigurationView.as_view(), name="settings.base"),
     path("", dashboard.DashboardView.as_view(), name="dashboard"),
     path(
@@ -109,6 +114,7 @@ urlpatterns = [
                 ),
                 path("log", members.MemberLogView.as_view(), name="members.log"),
                 path("mails", members.MemberMailsView.as_view(), name="members.mails"),
+                path("pgp", members.MemberPGPView.as_view(), name="members.pgp"),
                 path(
                     "documents",
                     members.MemberDocumentsView.as_view(),
@@ -138,7 +144,11 @@ urlpatterns = [
         upload.UploadMatchView.as_view(),
         name="finance.uploads.match",
     ),
-    re_path("^upload/add", upload.CsvUploadView.as_view(), name="finance.uploads.add"),
+    re_path(
+        "^upload/add",
+        upload.BankTransactionImportView.as_view(),
+        name="finance.uploads.add",
+    ),
     re_path(
         "^documents/add", documents.DocumentUploadView.as_view(), name="documents.add"
     ),

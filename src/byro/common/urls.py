@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    HealthView,
     LogInfoView,
     LoginView,
     OIDCCallbackView,
@@ -11,6 +12,7 @@ from .views import (
 
 app_name = "common"
 urlpatterns = [
+    path("healthz", HealthView.as_view(), name="healthz"),
     path("login/", LoginView.as_view(), name="login"),
     path("logout/", logout_view, name="logout"),
     path("member-home/", member_home, name="member-home"),

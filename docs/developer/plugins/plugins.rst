@@ -46,7 +46,7 @@ version            string               A human-readable version code of your pl
 description        string               A more verbose description of what your plugin does.
 ================== ==================== ===========================================================
 
-A working example would be::
+A working example, living in ``byro_irc/apps.py``, would be::
 
     from django.apps import AppConfig
     from django.utils.translation import gettext_lazy as _
@@ -63,28 +63,58 @@ A working example would be::
             visible = True
             description = _("This plugin sends notifications via IRC.")
 
+Django picks up the single ``AppConfig`` subclass in your ``apps`` submodule
+automatically. If that module defines more than one ``AppConfig`` subclass,
+mark the one byro should use with ``default = True``. The old
+``default_app_config`` variable has no effect since Django 4.1 and should not
+be used.
 
-    default_app_config = 'byro_irc.IRCApp'
+.. WARNING:: byro registers your plugin in ``INSTALLED_APPS`` by its bare
+   module name. If your ``AppConfig`` does not live in ``apps.py``, Django falls
+   back to a plain ``AppConfig`` without ``ByroPluginMeta``. byro starts without
+   an error, but silently ignores the plugin: its URLs are not included, it is
+   not listed on the plugins page, its document categories are missing, and its
+   ``ready()`` method never runs, so none of its signal receivers are connected.
 
 Plugin registration
 -------------------
 
 Somehow, byro needs to know that your plugin exists at all. For this purpose, we
 make use of the `entry point`_ mechanism. To register a plugin that lives
-in a separate python package, your ``setup.py`` should contain something like this::
+in a separate python package, your ``pyproject.toml`` should contain something
+like this::
 
-    setup(
-        args...,
-        entry_points="""
-    [byro.plugin]
-    byro_irc=byro_irc:ByroPluginMeta
-    """
-    )
+    [project.entry-points."byro.plugin"]
+    byro_irc = "byro_irc:ByroPluginMeta"
 
+byro only evaluates the module part before the colon and adds that module to
+``INSTALLED_APPS``; the part after the colon is a convention. If your project
+still uses a ``setup.py``, the same entry goes into its ``entry_points``
+argument under the ``[byro.plugin]`` group.
 
 This will automatically make byro discover this plugin as soon as you have
-installed it, e.g.  through ``pip``. During development, you can run ``python
-setup.py develop`` inside your plugin source directory to make it discoverable.
+installed it, e.g. through ``pip``. During development, install your plugin in
+editable mode with ``pip install -e .`` inside your plugin source directory to
+make it discoverable.
+
+Getting listed in the plugin catalog
+------------------------------------
+
+Administrators install plugins with ``byroctl plugin add <shortname>`` from a
+small catalog that ships with every byro release (see
+:doc:`/administrator/plugins`). To get your plugin listed:
+
+* publish regular GitHub releases (or releases on PyPI): byroctl installs the
+  current release and pins the commit its tag points to, so a plain tag is not
+  enough and a moved tag is treated as an integrity error;
+* declare the byro versions you support as a dependency, for example
+  ``dependencies = ["byro>=2026.3"]``, so that an incompatible combination
+  fails at build time instead of at runtime;
+* keep the ``AppConfig`` in ``apps.py`` (see the warning above) and ship your
+  translations as ``.po`` files; the image build compiles them;
+* open a pull request against ``deploy/plugin-catalog.conf`` in the byro
+  repository with your plugin's short name, display name, description, package
+  name, source and repository (maintainers: :doc:`/developer/releasing`).
 
 Signals
 -------
@@ -92,8 +122,8 @@ Signals
 byro defines different signals which your plugin can listen for. We will
 go into the details of the different signals in the following pages. We suggest
 that you put your signal receivers into a ``signals`` submodule of your plugin.
-You should extend your ``AppConfig`` (see above) by the following method to
-make your receivers available::
+You should extend your ``AppConfig`` in ``apps.py`` (see above) by the
+following method to make your receivers available::
 
     class IRCApp(AppConfig):
         …
