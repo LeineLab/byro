@@ -166,28 +166,64 @@ def get_verified_email(claims, access_token):
 
 
 def get_or_create_user(claims, access_token):
+    """Look up or create the local account for an OIDC identity.
+
+    Only called once the caller's ``is_admin()`` check already confirmed this
+    login is entitled to office access, so accounts handled here always get
+    ``is_staff`` -- this function is not itself a login gate.
+    """
     User = get_user_model()
     username_field = settings.OIDC_USERNAME_FIELD
     username = claims.get(username_field)
 
+    userinfo = None
     if not username:
-        username = get_userinfo(access_token).get(username_field)
+        userinfo = get_userinfo(access_token)
+        username = userinfo.get(username_field)
     if not username:
         raise OIDCError(
             f"OIDC claim '{username_field}' not found in ID token or userinfo"
         )
 
+    superuser_group = settings.OIDC_SUPERUSER_GROUP
+    groups = []
+    if superuser_group:
+        groups = claims.get("groups")
+        if groups is None:
+            if userinfo is None:
+                userinfo = get_userinfo(access_token)
+            groups = userinfo.get("groups", [])
+        if isinstance(groups, str):
+            groups = groups.split()
+
     try:
-        return User.objects.get(username=username)
+        user = User.objects.get(username=username)
     except User.DoesNotExist:
-        pass
-
-    if not settings.OIDC_AUTO_CREATE_ACCOUNT:
-        raise OIDCError(
-            f"No local account for '{username}' and auto-creation is disabled"
+        if not settings.OIDC_AUTO_CREATE_ACCOUNT:
+            raise OIDCError(
+                f"No local account for '{username}' and auto-creation is disabled"
+            )
+        user = User.objects.create_user(
+            username=username,
+            is_staff=True,
+            is_superuser=bool(superuser_group and superuser_group in groups),
         )
+        user.set_unusable_password()
+        user.save()
+        return user
 
-    user = User.objects.create_user(username=username)
-    user.set_unusable_password()
-    user.save()
+    # Existing accounts keep whatever superuser status they were given locally
+    # unless group syncing is explicitly enabled -- an admin revoking a group
+    # at the identity provider should not silently change local permissions
+    # by default. is_staff is always (re-)confirmed since reaching this point
+    # already proved office access for this login.
+    if settings.OIDC_SYNC_GROUPS:
+        is_superuser = (
+            (superuser_group in groups) if superuser_group else user.is_superuser
+        )
+        if not user.is_staff or user.is_superuser != is_superuser:
+            user.is_staff = True
+            user.is_superuser = is_superuser
+            user.save(update_fields=["is_staff", "is_superuser"])
+
     return user
