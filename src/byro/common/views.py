@@ -158,7 +158,7 @@ class LoginView(TemplateView):
             )
             return redirect("common:login")
 
-        if not user.is_staff:
+        if not (user.is_staff or user.is_superuser):
             messages.error(request, _("This account does not have office access."))
             LogEntry.objects.create(
                 content_object=user,
@@ -279,7 +279,7 @@ class OIDCCallbackView(View):
                 messages.error(request, _("User account is deactivated."))
                 return sso_error_redirect()
 
-            if not user.is_staff:
+            if not (user.is_staff or user.is_superuser):
                 messages.error(request, _("This account does not have office access."))
                 LogEntry.objects.create(
                     content_object=user,
